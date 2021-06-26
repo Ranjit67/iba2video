@@ -617,6 +617,13 @@ io.of("/stream").on("connection", (socket) => {
   });
 });
 
+app.get("/data", async (req, res, next) => {
+  try {
+    res.json({ data: "data save suc" });
+  } catch (error) {
+    next(error);
+  }
+});
 //for mail route
 // checkout
 app.post("/mail", async (req, res, next) => {

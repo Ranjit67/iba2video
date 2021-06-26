@@ -52,7 +52,7 @@ const recordRaw = {};
 //start
 io.on("connection", (socket) => {
   socket.on("mentor start class", async (payload) => {
-    console.log(payload);
+    // console.log(payload);
     const { mentorId, scheduleID } = payload;
     // console.log(room[mentorId]);
     if (room?.[mentorId]?.length > 0 && schedule[mentorId] === scheduleID) {
@@ -401,6 +401,7 @@ io.of("/stream").on("connection", (socket) => {
       if (userSoIdToUidStream2[socket.id]) {
         const userUid = userSoIdToUidStream2?.[socket.id];
         const connectedToMentorUid = userConnectedTo[userUid];
+
         const mentorData = stream2Mentor?.[connectedToMentorUid]?.find(
           (id) => id?.type === "mentor"
         );
@@ -410,7 +411,7 @@ io.of("/stream").on("connection", (socket) => {
         stream2Mentor[connectedToMentorUid] = stream2Mentor?.[
           connectedToMentorUid
         ]?.filter((id) => id.uid !== userUid);
-        // console.log(userConnectedTo[userUid]);
+
         delete userConnectedTo[userUid];
         delete userSoIdToUidStream2[socket.id];
       } else if (mentorSoIdToUid[socket.id]) {
@@ -442,12 +443,7 @@ io.of("/stream").on("connection", (socket) => {
       const findMentor = await stream2Mentor?.[mentorUid]?.find(
         (id) => id.type === "mentor"
       );
-      const pay = {
-        mentorSignal: signalData,
-        mentorMic: findMentor.audio,
-        mentorVideo: findMentor.video,
-        startDate,
-      };
+
       socket.to(findUser?.soId).emit("send to user", {
         mentorSignal: signalData,
         mentorMic: findMentor.audio,

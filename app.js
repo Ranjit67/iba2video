@@ -6,7 +6,6 @@ const nodemailer = require("nodemailer");
 const app = express();
 app.use(express.json());
 const http = require("http");
-const { Socket } = require("dgram");
 require("dotenv").config();
 const server = http.createServer(app);
 
@@ -52,7 +51,7 @@ const recordRaw = {};
 //start
 io.on("connection", (socket) => {
   socket.on("mentor start class", async (payload) => {
-    // console.log(payload);
+    console.log(payload);
     const { mentorId, scheduleID } = payload;
     // console.log(room[mentorId]);
     if (room?.[mentorId]?.length > 0 && schedule[mentorId] === scheduleID) {
@@ -332,7 +331,7 @@ io.on("connection", (socket) => {
 });
 
 //live stream 2
-//It manipulation when mentor connected..
+
 //update one stream var
 const stream2Mentor = {};
 const userSoIdToUidStream2 = {};
@@ -369,7 +368,7 @@ io.of("/stream").on("connection", (socket) => {
           mentorShareScreen: findMentor?.screenShare,
         });
       } else {
-        socket.emit("mentor does not start the class");
+        socket.emit("mentor_does_not_start_the_class");
       }
     } catch (error) {
       new Error(error);
@@ -401,7 +400,6 @@ io.of("/stream").on("connection", (socket) => {
       if (userSoIdToUidStream2[socket.id]) {
         const userUid = userSoIdToUidStream2?.[socket.id];
         const connectedToMentorUid = userConnectedTo[userUid];
-
         const mentorData = stream2Mentor?.[connectedToMentorUid]?.find(
           (id) => id?.type === "mentor"
         );
@@ -411,7 +409,7 @@ io.of("/stream").on("connection", (socket) => {
         stream2Mentor[connectedToMentorUid] = stream2Mentor?.[
           connectedToMentorUid
         ]?.filter((id) => id.uid !== userUid);
-
+        // console.log(userConnectedTo[userUid]);
         delete userConnectedTo[userUid];
         delete userSoIdToUidStream2[socket.id];
       } else if (mentorSoIdToUid[socket.id]) {
@@ -617,6 +615,7 @@ io.of("/stream").on("connection", (socket) => {
   });
 });
 
+//for mail route
 app.get("/data", async (req, res, next) => {
   try {
     res.json({ data: "data save suc" });
@@ -624,7 +623,6 @@ app.get("/data", async (req, res, next) => {
     next(error);
   }
 });
-//for mail route
 // checkout
 app.post("/mail", async (req, res, next) => {
   try {

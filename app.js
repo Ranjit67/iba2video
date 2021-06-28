@@ -503,7 +503,6 @@ io.of("/stream").on("connection", (socket) => {
   socket.on("mentor_video_mute", async (payload) => {
     try {
       const { videoMuteStatus, mentorUid } = payload;
-
       const filterMentor = await stream2Mentor?.[mentorUid]?.filter(
         (id) => id.type !== "mentor"
       );
@@ -516,7 +515,7 @@ io.of("/stream").on("connection", (socket) => {
       await filterMentor?.push({
         type: "mentor",
         audio: findMentor?.audio,
-        video: videoMuteStatus,
+        video: !videoMuteStatus,
         screenShare: findMentor?.screenShare,
         soId: socket.id,
         uid: mentorUid,
@@ -541,7 +540,7 @@ io.of("/stream").on("connection", (socket) => {
       });
       await filterMentor?.push({
         type: "mentor",
-        audio: micStatus,
+        audio: !micStatus,
         video: findMentor?.video,
         screenShare: findMentor?.screenShare,
         soId: socket.id,

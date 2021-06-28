@@ -414,6 +414,7 @@ io.of("/stream").on("connection", (socket) => {
         delete userSoIdToUidStream2[socket.id];
       } else if (mentorSoIdToUid[socket.id]) {
         const mentorUid = mentorSoIdToUid?.[socket.id];
+
         const filterMentor = stream2Mentor?.[mentorUid]?.filter(
           (id) => id.type !== "mentor"
         );
@@ -462,15 +463,19 @@ io.of("/stream").on("connection", (socket) => {
       socket.to(findMentorData?.soId).emit("mentor get return signal", {
         userSignal: signal,
         user: userUid,
+        soId: socket.id,
       });
     } catch (error) {
       new Error(error);
     }
   });
+  socket.on("make_true", (payload) => {
+    const { userSoId } = payload;
+    socket.to(userSoId).emit("make_true_loader");
+  });
   socket.on("user_delete_himself", (payload) => {
     try {
       const userUid = userSoIdToUidStream2?.[socket.id];
-
       delete userConnectedTo[userUid];
       delete userSoIdToUidStream2?.[socket.id];
     } catch (error) {

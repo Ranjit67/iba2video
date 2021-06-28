@@ -423,8 +423,6 @@ io.of("/stream").on("connection", (socket) => {
         });
         delete stream2Mentor[mentorUid];
         delete mentorSoIdToUid[socket.id];
-
-        //mentor take leave
       }
     } catch (error) {
       new Error(error);
@@ -617,6 +615,19 @@ io.of("/stream").on("connection", (socket) => {
     } catch (error) {
       new Error(error);
     }
+  });
+  //typing
+  socket.on("text_typing", (payload) => {
+    const { name, textStatus, mentorUid, userSelf } = payload;
+    const userHimself = stream2Mentor?.[mentorUid]?.filter(
+      (id) => id?.uid !== userSelf
+    );
+    userHimself?.forEach((element) => {
+      socket.to(element?.soId).emit("Typing_some_One", {
+        name,
+        textStatus,
+      });
+    });
   });
 });
 

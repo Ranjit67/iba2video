@@ -406,16 +406,16 @@ io.of("/stream").on("connection", (socket) => {
         socket.to(mentorData?.soId).emit("one user leave", {
           userUid: userUid,
         });
-        // stream2Mentor[connectedToMentorUid] = stream2Mentor?.[
-        //   connectedToMentorUid
-        // ]?.filter((id) => id.uid !== userUid);
+        stream2Mentor[connectedToMentorUid] = stream2Mentor?.[
+          connectedToMentorUid
+        ]?.filter((id) => id.uid !== userUid);
         // console.log(userConnectedTo[userUid]);
-        const leftUser = await stream2Mentor?.[connectedToMentorUid]?.filter(
-          (id) => id.uid !== userUid
-        );
-        if (leftUser?.length > 0) {
-          stream2Mentor[connectedToMentorUid] = leftUser;
-        }
+        // const leftUser = await stream2Mentor?.[connectedToMentorUid]?.filter(
+        //   (id) => id.uid !== userUid
+        // );
+        // if (leftUser?.length > 0) {
+        //   stream2Mentor[connectedToMentorUid] = leftUser;
+        // }
 
 
         delete userConnectedTo[userUid];

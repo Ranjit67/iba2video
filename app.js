@@ -51,7 +51,6 @@ const recordRaw = {};
 //start
 io.on("connection", (socket) => {
   socket.on("mentor start class", async (payload) => {
-    console.log(payload);
     const { mentorId, scheduleID } = payload;
     // console.log(room[mentorId]);
     if (room?.[mentorId]?.length > 0 && schedule[mentorId] === scheduleID) {
@@ -359,14 +358,30 @@ io.of("/stream").on("connection", (socket) => {
         });
 
         stream2Mentor[mentorId] = fillTarDta;
-        const findMentor = stream2Mentor?.[mentorId]?.find(
-          (id) => id.type === "mentor"
-        );
-
-        socket.to(findMentor?.soId).emit("send for create peer", {
-          userUid: userId,
-          mentorShareScreen: findMentor?.screenShare,
+        fillTarDta.forEach((element) => {
+          if (element.uid === userId) {
+            null;
+          } else if (element.type === "mentor") {
+            socket.to(element.soId).emit("send for create peer", {
+              userUid: userId,
+              mentorShareScreen: element?.screenShare,
+            });
+          } else if (element.type === "user") {
+            socket.to(element.soId).emit("new_user_join", {
+              userUid: userId,
+            });
+          }
+          // socket.to(element.soId).emit()
         });
+        // const findMentor = stream2Mentor?.[mentorId]?.find(
+        //   (id) => id.type === "mentor"
+        // );
+
+        // socket.to(findMentor?.soId).emit("send for create peer", {
+        //   userUid: userId,
+        //   mentorShareScreen: findMentor?.screenShare,
+        // });
+        //screen share or not check
       } else {
         socket.emit("mentor_does_not_start_the_class");
       }
@@ -374,7 +389,37 @@ io.of("/stream").on("connection", (socket) => {
       new Error(error);
     }
   });
-
+  socket.on("mentor_screen_on", (payload) => {
+    try {
+      const { userUid } = payload;
+      socket.emit("send_create_peer_screen", {
+        userUid,
+      });
+    } catch (error) {
+      next(error);
+    }
+  });
+  socket.on("screen_share_off", (payload) => {
+    const { mentorUid } = payload;
+    const findMentor = stream2Mentor[mentorUid]?.find(
+      (id) => id.uid === mentorUid
+    );
+    const filterMentor = stream2Mentor[mentorUid]?.filter(
+      (id) => id.uid !== mentorUid
+    );
+    filterMentor?.forEach((id) => {
+      socket.to(id.soId).emit("screen_stop");
+    });
+    filterMentor?.push({
+      type: "mentor",
+      audio: findMentor?.audio,
+      video: findMentor?.video,
+      screenShare: false,
+      soId: socket.id,
+      uid: mentorUid,
+    });
+    stream2Mentor[mentorUid] = filterMentor;
+  });
   //mentor first time join
   socket.on("Mentor join", (payload) => {
     try {
@@ -400,24 +445,31 @@ io.of("/stream").on("connection", (socket) => {
       if (userSoIdToUidStream2[socket.id]) {
         const userUid = userSoIdToUidStream2?.[socket.id];
         const connectedToMentorUid = userConnectedTo[userUid];
-        const mentorData = stream2Mentor?.[connectedToMentorUid]?.find(
-          (id) => id?.type === "mentor"
-        );
-        socket.to(mentorData?.soId).emit("one user leave", {
-          userUid: userUid,
-        });
-        stream2Mentor[connectedToMentorUid] = stream2Mentor?.[
-          connectedToMentorUid
-        ]?.filter((id) => id.uid !== userUid);
-        // console.log(userConnectedTo[userUid]);
-        // const leftUser = await stream2Mentor?.[connectedToMentorUid]?.filter(
-        //   (id) => id.uid !== userUid
+        // const mentorData = stream2Mentor?.[connectedToMentorUid]?.find(
+        //   (id) => id?.type === "mentor"
         // );
-        // if (leftUser?.length > 0) {
-        //   stream2Mentor[connectedToMentorUid] = leftUser;
-        // }
+        // socket.to(mentorData?.soId).emit("one user leave", {
+        //   userUid: userUid,
+        // });
+        const filterUser = stream2Mentor?.[connectedToMentorUid]?.filter(
+          (id) => id.uid !== userUid
+        );
+        filterUser.forEach((element) => {
+          if (element.type === "mentor") {
+            socket.to(element?.soId).emit("one user leave", {
+              userUid: userUid,
+            });
+          } else if (element.type === "user") {
+            socket.to(element?.soId).emit("one_user_leave_userSide", {
+              userUid: userUid,
+            });
+          }
+        });
+        if (filterUser.length > 0) {
+          stream2Mentor[connectedToMentorUid] = filterUser;
+        }
 
-
+        // console.log(userConnectedTo[userUid]);
         delete userConnectedTo[userUid];
         delete userSoIdToUidStream2[socket.id];
       } else if (mentorSoIdToUid[socket.id]) {
@@ -441,19 +493,20 @@ io.of("/stream").on("connection", (socket) => {
 
   socket.on("Mentor send signal", async (payload) => {
     try {
-      const { sendTo, mentorUid, signalData, startDate } = payload;
+      const { sendTo, mentorUid, signalData, startDate, dataType } = payload;
       const findUser = stream2Mentor?.[mentorUid]?.find(
         (id) => id.uid === sendTo
       );
       const findMentor = await stream2Mentor?.[mentorUid]?.find(
         (id) => id.type === "mentor"
       );
-
+      // console.log(startDate);
       socket.to(findUser?.soId).emit("send to user", {
         mentorSignal: signalData,
         mentorMic: findMentor.audio,
         mentorVideo: findMentor.video,
         startDate,
+        dataType,
       });
     } catch (error) {
       new Error(error);
@@ -462,15 +515,24 @@ io.of("/stream").on("connection", (socket) => {
 
   socket.on("User send signal to mentor", (payload) => {
     try {
-      const { signal, mentorUid, userUid } = payload;
+      const { signal, mentorUid, userUid, dataType } = payload;
+      // console.log(dataType);
       const findMentorData = stream2Mentor?.[mentorUid]?.find(
         (id) => id.uid === mentorUid
       );
-      socket.to(findMentorData?.soId).emit("mentor get return signal", {
-        userSignal: signal,
-        user: userUid,
-        soId: socket.id,
-      });
+      if (!dataType) {
+        socket.to(findMentorData?.soId).emit("mentor get return signal", {
+          userSignal: signal,
+          user: userUid,
+          soId: socket.id,
+        });
+      } else {
+        socket.to(findMentorData?.soId).emit("mentor_get_screen_return", {
+          userSignal: signal,
+          user: userUid,
+          soId: socket.id,
+        });
+      }
     } catch (error) {
       new Error(error);
     }
@@ -571,26 +633,65 @@ io.of("/stream").on("connection", (socket) => {
     try {
       const userUid = userSoIdToUidStream2?.[socket.id];
       const connectedToMentorUid = userConnectedTo[userUid];
-      const mentorData = await stream2Mentor?.[connectedToMentorUid]?.find(
-        (id) => id?.type === "mentor"
-      );
-      socket.to(mentorData?.soId).emit("one user leave", {
-        userUid: userUid,
-      });
+      // const mentorData = await stream2Mentor?.[connectedToMentorUid]?.find(
+      //   (id) => id?.type === "mentor"
+      // );
+      // socket.to(mentorData?.soId).emit("one user leave", {
+      //   userUid: userUid,
+      // });
 
       const leftUser = await stream2Mentor?.[connectedToMentorUid]?.filter(
         (id) => id.uid !== userUid
       );
+
+      leftUser.forEach((element) => {
+        if (element.type === "mentor") {
+          socket.to(element?.soId).emit("one user leave", {
+            userUid: userUid,
+          });
+        } else if (element.type === "user") {
+          socket.to(element?.soId).emit("one_user_leave_userSide", {
+            userUid: userUid,
+          });
+        }
+      });
+
       if (leftUser?.length > 0) {
         stream2Mentor[connectedToMentorUid] = leftUser;
       }
 
+      // console.log(userConnectedTo[userUid]);
       delete userConnectedTo[userUid];
       delete userSoIdToUidStream2[socket.id];
     } catch (error) {
       new Error(error);
     }
   });
+  //share screen center
+
+  socket.on("Mentor_screen_join", (payload) => {
+    const { mentorUid } = payload;
+    const findMentor = stream2Mentor[mentorUid]?.find(
+      (id) => id.uid === mentorUid
+    );
+    const usersIn = stream2Mentor[mentorUid]?.filter(
+      (id) => id.uid !== mentorUid + mentorUid
+    );
+    usersIn?.push({
+      type: "mentor2",
+      audio: findMentor?.audio,
+      video: findMentor?.video,
+      screenShare: true,
+      soId: socket.id,
+      uid: mentorUid + mentorUid,
+    });
+    stream2Mentor[mentorUid] = usersIn;
+    socket.emit("do_screen_share");
+    // socket.emit("peopleIn");
+  });
+  // socket.on("mentor_command_to_start", (payload) => {
+  //   socket.emit("do_screen_share");
+  // });
 
   // messaging center
 
@@ -616,7 +717,6 @@ io.of("/stream").on("connection", (socket) => {
           message,
           userSelf,
           senderName,
-
           textUid,
           imageFile,
           reaction,
@@ -708,4 +808,3 @@ app.use((err, req, res, next) => {
 server.listen(process.env.PORT || 4000, () => {
   console.log("The port 4000 is ready to start....");
 });
-//end

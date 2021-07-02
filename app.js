@@ -507,6 +507,7 @@ io.of("/stream").on("connection", (socket) => {
         mentorVideo: findMentor.video,
         startDate,
         dataType,
+        inClass: stream2Mentor?.[mentorUid],
       });
     } catch (error) {
       new Error(error);

@@ -742,6 +742,288 @@ io.of("/stream").on("connection", (socket) => {
     });
   });
 });
+const updateStreamRoom = {};
+const allKindUserSoIdToUid = {};
+const uidToRoomInfoId = {};
+
+io.of("/updateStream").on("connection", (socket) => {
+  socket.on("user_join", (payload) => {
+    try {
+      const { userUid, roomId, audio, video, share, handRaise } = payload;
+      allKindUserSoIdToUid[socket.id] = userUid;
+      uidToRoomInfoId[userUid] = roomId;
+      if (updateStreamRoom[roomId]) {
+        const filterUser = updateStreamRoom[roomId]?.filter(
+          (id) => id?.uid !== userUid
+        );
+
+        socket.emit("create_peer_request", { filterUser });
+        filterUser.push({
+          uid: userUid,
+          soId: socket.id,
+          type: "user",
+          audio,
+          video,
+          share,
+          handRaise,
+        });
+        allKindUserSoIdToUid[socket.id] = userUid;
+        uidToRoomInfoId[userUid] = roomId;
+        updateStreamRoom[roomId] = filterUser;
+        // console.log("mentor",updateStreamRoom[roomId]);
+      } else {
+        //new array created
+        updateStreamRoom[roomId] = [];
+        // console.log("new");
+        updateStreamRoom[roomId].push({
+          uid: userUid,
+          soId: socket.id,
+          type: "user",
+          audio,
+          video,
+          share,
+          handRaise,
+        });
+        allKindUserSoIdToUid[socket.id] = userUid;
+        uidToRoomInfoId[userUid] = roomId;
+      }
+    } catch (error) {
+      new Error(error);
+    }
+  });
+  socket.on("create_peer_signal", (payload) => {
+    try {
+      const { roomId, selfId, signal, sendTo } = payload;
+      const findSelfIdUser = updateStreamRoom?.[roomId]?.find(
+        (id) => id?.uid === selfId
+      );
+      const findSendToUser = updateStreamRoom?.[roomId]?.find(
+        (id) => id?.uid === sendTo
+      );
+
+      socket
+        .to(findSendToUser?.soId)
+        .emit("create_peer_signal_send_to_destiny", {
+          signal,
+          audio: findSelfIdUser?.audio,
+          video: findSelfIdUser?.video,
+          share: findSelfIdUser?.share,
+          type: findSelfIdUser?.type,
+          comeFromCreatePeerUid: findSelfIdUser?.uid,
+          handRaise: findSelfIdUser?.handRaise,
+        });
+    } catch (error) {
+      new Error(error);
+    }
+  });
+  //mentor side
+  socket.on("mentor_join", (payload) => {
+    try {
+      const { roomId, audio, video, share, mentorUid, handRaise } = payload;
+      if (updateStreamRoom[roomId]) {
+        const filterMentor = updateStreamRoom?.[roomId]?.filter(
+          (id) => id?.uid !== mentorUid
+        );
+        socket.emit("create_peer_request_to_mentor", {
+          filterMentor,
+        });
+        filterMentor.push({
+          uid: mentorUid,
+          soId: socket.id,
+          type: "mentor",
+          audio,
+          video,
+          share,
+          handRaise,
+        });
+        updateStreamRoom[roomId] = filterMentor;
+        allKindUserSoIdToUid[socket.id] = mentorUid;
+        uidToRoomInfoId[mentorUid] = roomId;
+      } else {
+        updateStreamRoom[roomId] = [];
+        updateStreamRoom[roomId].push({
+          uid: mentorUid,
+          soId: socket.id,
+          type: "mentor",
+          audio,
+          video,
+          share,
+          handRaise,
+        });
+        allKindUserSoIdToUid[socket.id] = mentorUid;
+        uidToRoomInfoId[mentorUid] = roomId;
+      }
+    } catch (error) {
+      new Error(error);
+    }
+  });
+  //add peer signal send destination
+  socket.on("add_peer_signal", (payload) => {
+    try {
+      const { signal, sendTo, roomId, addPeerSignalSender } = payload;
+      const findSender = updateStreamRoom?.[roomId]?.find(
+        (id) => id?.uid === sendTo
+      );
+      const addPeerSignalSenderData = updateStreamRoom?.[roomId]?.find(
+        (id) => id?.uid === addPeerSignalSender
+      );
+
+      socket.to(findSender?.soId).emit("add_peer_to_destiny", {
+        signal,
+        addPeerSignalSender,
+        audio: addPeerSignalSenderData?.audio,
+        video: addPeerSignalSenderData?.video,
+        share: addPeerSignalSenderData?.share,
+        type: addPeerSignalSenderData?.type,
+        handRaise: addPeerSignalSenderData?.handRaise,
+      });
+    } catch (error) {
+      new Error(error);
+    }
+  });
+
+  socket.on("disconnect", () => {
+    try {
+      const gotUid = allKindUserSoIdToUid[socket.id];
+      const roomId = uidToRoomInfoId[gotUid];
+
+      //here  does not need to filter
+      updateStreamRoom?.[roomId]?.forEach((element) => {
+        if (element.uid !== gotUid) {
+          socket.to(element.soId).emit("one_user_leave", { leaveUid: gotUid });
+        }
+      });
+      const filterLeaveUser = updateStreamRoom?.[roomId]?.filter(
+        (id) => id?.uid !== gotUid
+      );
+      updateStreamRoom[roomId] = filterLeaveUser;
+    } catch (error) {
+      new Error(error);
+    }
+  });
+  //media status regulate
+  socket.on("user_mic_status", (payload) => {
+    const { micStatus, videoStatus, handRaise, userUid, roomId } = payload;
+
+    updateStreamRoom?.[roomId]?.forEach((id) => {
+      socket.to(id.soId).emit("One_user_media_status", {
+        userUid,
+        micStatus,
+        videoStatus,
+        handRaise,
+      });
+    });
+    const findUser = updateStreamRoom?.[roomId]?.find(
+      (id) => id.uid === userUid
+    );
+    const filterData = updateStreamRoom?.[roomId]?.filter(
+      (id) => id.uid !== userUid
+    );
+    filterData?.push({
+      uid: findUser?.uid,
+      soId: findUser?.soId,
+      type: findUser?.type,
+      audio: micStatus,
+      video: videoStatus,
+      share: findUser?.share,
+      handRaise: handRaise,
+    });
+    updateStreamRoom[roomId] = filterData;
+  });
+  //mentor regulate media status to other
+  socket.on("mentor_regulate_media status", (payload) => {
+    const {
+      micStatus,
+      videoStatus,
+      userUid,
+      roomId,
+      handRaise,
+      whichOne,
+      mentorUid,
+    } = payload;
+    //
+    updateStreamRoom?.[roomId]?.forEach((id) => {
+      if (id?.uid === userUid) {
+        //mentor force to mic on
+        socket.to(id?.soId).emit("mentor_force_media", {
+          userUid,
+          micStatus,
+          videoStatus,
+          handRaise,
+          whichOne,
+        });
+      } else if (id?.uid !== mentorUid) {
+        socket.to(id.soId).emit("One_user_media_status", {
+          userUid,
+          micStatus,
+          videoStatus,
+          handRaise,
+        });
+      }
+    });
+    const findUser = updateStreamRoom?.[roomId]?.find(
+      (id) => id.uid === userUid
+    );
+    const filterData = updateStreamRoom?.[roomId]?.filter(
+      (id) => id.uid !== userUid
+    );
+    filterData?.push({
+      uid: findUser?.uid,
+      soId: findUser?.soId,
+      type: findUser?.type,
+      audio: micStatus,
+      video: videoStatus,
+      share: findUser?.share,
+      handRaise: handRaise,
+    });
+    updateStreamRoom[roomId] = filterData;
+
+    //
+  });
+  //force leave
+  socket.on("one_student_leave", (payload) => {
+    const { userUid, roomId } = payload;
+
+    updateStreamRoom?.[roomId]?.forEach((element) => {
+      if (element.uid !== userUid) {
+        socket.to(element.soId).emit("one_user_leave", { leaveUid: userUid });
+      }
+    });
+    const filterLeaveUser = updateStreamRoom?.[roomId]?.filter(
+      (id) => id?.uid !== userUid
+    );
+    updateStreamRoom[roomId] = filterLeaveUser;
+  });
+  //mentor leave
+
+  socket.on("mentor_leave", (payload) => {
+    const { roomId, mentorUid } = payload;
+    updateStreamRoom?.[roomId]?.forEach((user) => {
+      socket.to(user?.soId).emit("mentor_take_leave");
+      delete allKindUserSoIdToUid[user?.soId];
+      delete uidToRoomInfoId[user?.uid];
+    });
+    delete allKindUserSoIdToUid[socket.id];
+    delete uidToRoomInfoId[mentorUid];
+    delete updateStreamRoom[roomId];
+  });
+  //message section
+  socket.on("message_send", (payload) => {
+    const { roomId, uid, status, text, textUid, name } = payload;
+    updateStreamRoom?.[roomId]?.forEach((element) => {
+      if (element?.uid !== uid) {
+        socket.to(element.soId).emit("message_send_to_other", {
+          uid,
+          status,
+          text,
+          textUid,
+          name,
+        });
+      }
+    });
+  });
+  //end update stream
+});
 
 //for mail route
 app.get("/data", async (req, res, next) => {

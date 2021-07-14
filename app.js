@@ -985,7 +985,7 @@ io.of("/updateStream").on("connection", (socket) => {
     const { userUid, roomId } = payload;
 
     updateStreamRoom?.[roomId]?.forEach((element) => {
-      if (element.uid !== userUid) {
+      if (element?.uid !== userUid) {
         socket.to(element.soId).emit("one_user_leave", { leaveUid: userUid });
       }
     });
